@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NomNom Pro | Delivery Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .glass-card { background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .table { color: #f8fafc !important; vertical-align: middle; }
+        .status-pending { color: #f59e0b; font-weight: bold; }
+        .status-done { color: #10b981; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-5">
+        <a href="index.html" class="btn btn-outline-primary me-3"><i class="bi bi-arrow-left"></i></a>
+        <h2 class="fw-bold m-0">Pending <span class="text-primary">Home Deliveries</span></h2>
+    </div>
+
+    <div class="glass-card p-4">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>TIME</th>
+                        <th>CUSTOMER</th>
+                        <th>ITEMS</th>
+                        <th>ADDRESS</th>
+                        <th class="text-center">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="deliveryTable">
+                    <!-- Pending deliveries will appear here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadDeliveries() {
+    try {
+        // 🟢 Change: Fetch all sales to ensure we don't miss records due to date formatting
+        const res = await fetch('http://localhost:8081/view-products'); // Use your sales view endpoint instead
+        // If you have a specific /view-sales endpoint, use that. 
+        // For now, let's use the current date fetch but make it more flexible:
+        const today = new Date().toLocaleDateString('en-CA'); // Gets YYYY-MM-DD in local time
+        
+        const salesRes = await fetch(`http://localhost:8081/sales-by-date/${today}`);
+        const sales = await salesRes.json();
+        
+        const tbody = document.getElementById('deliveryTable');
+        tbody.innerHTML = '';
+
+        // 🟢 Filter: Show only if it IS a home delivery AND it IS NOT delivered yet
+        const pending = sales.filter(s => s.isHomeDelivery === true && s.deliveryStatus === false);
+
+        pending.forEach(s => {
+            tbody.innerHTML += `
+                <tr>
+                    <td class="small text-muted">${new Date(s.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                    <td>
+                        <div class="fw-bold">${s.customerName || 'Guest'}</div>
+                        <div class="small text-primary">${s.customerPhone || ''}</div>
+                    </td>
+                    <td class="small">${s.itemsSummary}</td>
+                    <td class="small text-info">${s.customerAddress || 'No Address Provided'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-success btn-sm rounded-pill px-3" onclick="markDelivered(${s.id})">
+                            <i class="bi bi-check-lg"></i> Mark Delivered
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        if(pending.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted">All orders delivered! 🚚💨</td></tr>';
+        }
+    } catch (err) {
+        console.error("Delivery load error:", err);
+    }
+}
+
+    async function markDelivered(saleId) {
+        // You'll need a small backend update to handle this status change
+        const res = await fetch(`http://localhost:8081/update-delivery-status/${saleId}`, { method: 'POST' });
+        if(res.ok) {
+            alert("Order marked as Delivered!");
+            loadDeliveries();
+        }
+    }
+
+    loadDeliveries();
+</script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="security.js"></script>
+    <title>NomNom Pro | Business Intelligence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary-blue: #3B82F6;
+            --secondary-teal: #10B981;
+            --accent-yellow: #F59E0B;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body { background-color: var(--bg-deep); color: var(--text-main); font-family: 'Inter', sans-serif; padding: 20px; }
+        
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            height: 100%;
+        }
+        
+        /* Fix for invisible text in alerts */
+    .alert-item {
+        background: rgba(15, 23, 42, 0.6); /* Deep dark background */
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .text-bright { color: #f8fafc !important; font-weight: 600; }
+
+        .metric-card { border-bottom: 4px solid transparent; min-height: 110px; display: flex; flex-direction: column; justify-content: center; }
+        .metric-blue { border-color: var(--primary-blue); }
+        .metric-teal { border-color: var(--secondary-teal); }
+        .chart-container { height: 320px; position: relative; }
+        .section-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="d-flex align-items-center mb-5">
+        <a href="index.html" class="btn btn-outline-primary me-3"><i class="bi bi-arrow-left"></i></a>
+        <h2 class="fw-bold m-0">BUSINESS INTELLIGENCE</h2>
+        <div class="ms-auto d-flex gap-2">
+            <select id="timeRange" class="form-select bg-dark text-white border-secondary" onchange="loadStats()">
+                <option value="daily">Daily View</option>
+                <option value="monthly">Monthly Report</option>
+            </select>
+            <input type="date" id="statDate" class="form-control bg-dark text-white border-secondary" onchange="loadStats()">
+        </div>
+    </div>
+    
+    <div class="row g-3 mb-4">
+        <div class="col"><div class="glass-card metric-card metric-teal text-center"><small class="section-title mb-2">CASH IN HAND</small><h3 class="fw-bold" id="totalCash">₹0</h3></div></div>
+        <div class="col"><div class="glass-card metric-card metric-blue text-center"><small class="section-title mb-2">TOTAL SALES</small><h3 class="fw-bold" id="totalSales">₹0</h3></div></div>
+        <div class="col"><div class="glass-card metric-card text-center" style="border-color: #ef4444;"><small class="section-title mb-2">NEW DEBT</small><h3 class="fw-bold text-danger" id="totalDebt">₹0</h3></div></div>
+        <div class="col"><div class="glass-card metric-card text-center"><small class="section-title mb-2">ITEMS SOLD</small><h3 class="fw-bold" id="itemsCount">0</h3></div></div>
+        <div class="col"><div class="glass-card metric-card metric-teal text-center"><small class="section-title mb-2">NET PROFIT</small><h3 class="fw-bold text-success" id="totalProfit">₹0</h3></div></div>
+    </div>
+
+    <!-- Top Row: Profit & Volume -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="glass-card">
+                <div class="section-title mb-4"><i class="bi bi-currency-rupee me-2 text-success"></i>Top 5 Profiting Items (Net INR)</div>
+                <div class="chart-container"><canvas id="profitChart"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card">
+                <div class="section-title mb-4"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Volume Distribution (kg)</div>
+                <div class="chart-container"><canvas id="distChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🟢 FIXED ROW: Weekly Profit & Bag Distribution -->
+    <div class="row g-4 mb-4">
+    <!-- 7-Day Profit Chart -->
+    <div class="col-lg-8">
+        <div class="glass-card">
+            <div class="section-title mb-4">
+                <i class="bi bi-graph-up-arrow me-2 text-warning"></i>7-Day Net Profit Trend
+            </div>
+            <div class="chart-container">
+                <canvas id="weeklyProfitChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <!-- Bag Distribution Chart -->
+    <div class="col-lg-4">
+        <div class="glass-card">
+            <div class="section-title mb-4">
+                <i class="bi bi-pie-chart-fill me-2 text-warning"></i>Bag Distribution
+            </div>
+            <div class="chart-container">
+                <canvas id="bagPieChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+
+    <div class="row g-4">
+    <div class="col-md-6">
+        <div class="glass-card">
+            <div class="section-title mb-3 text-warning">
+                <i class="bi bi-graph-down me-2"></i>Slow Moving Stocks (Zero Sales)
+            </div>
+            <div id="slowMovingContainer">
+                </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="glass-card">
+            <div class="section-title mb-3 text-danger">
+                <i class="bi bi-exclamation-octagon me-2"></i>Reorder Alerts (Low Stock)
+            </div>
+            <div id="reorderContainer">
+                </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.getElementById('statDate').valueAsDate = new Date();
+
+    async function loadStats() {
+        const date = document.getElementById('statDate').value;
+        const range = document.getElementById('timeRange').value;
+     // Fetch and render the new weekly chart
+        const weeklyRes = await fetch('http://localhost:8081/api/weekly-profit');
+        const weeklyData = await weeklyRes.json();
+        renderWeeklyChart(weeklyData.labels, weeklyData.profits);
+        
+        try {
+            const response = await fetch(`http://localhost:8081/api/stats?date=${date}&range=${range}`);
+            if (!response.ok) throw new Error("Server error");
+            
+            const data = await response.json();
+            console.log("Data Received:", data);
+
+            // 1. SAFE METRIC UPDATES (Checks if ID exists first)
+            const updateText = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = text;
+            };
+
+            updateText('totalCash', `₹${(data.totalCash || 0).toLocaleString()}`);
+            updateText('totalSales', `₹${(data.totalSales || 0).toLocaleString()}`);
+            updateText('totalDebt', `₹${(data.totalDebt || 0).toLocaleString()}`);
+            updateText('totalProfit', `₹${(data.totalProfit || 0).toLocaleString()}`);
+            updateText('itemsCount', data.totalItems || 0);
+
+            // 2. SAFE SLOW MOVING CONTAINER
+            // 🟢 Update Slow Moving Stocks (Visible Text Fix)
+            const slowContainer = document.getElementById('slowMovingContainer');
+            if (slowContainer) {
+                if (data.slowMovingList && data.slowMovingList.length > 0) {
+                    slowContainer.innerHTML = data.slowMovingList.map(item => `
+                        <div class="alert-item border-start border-warning border-3">
+                            <span class="small text-bright">${item}</span>
+                            <span class="badge bg-warning text-dark">STAGNANT</span>
+                        </div>
+                    `).join('');
+                } else {
+                    slowContainer.innerHTML = '<p class="text-success small p-2">Everything is moving well!</p>';
+                }
+            }
+
+            // 🟢 Update Reorder Alerts (Visible Text Fix)
+            const reorderContainer = document.getElementById('reorderContainer');
+            if (reorderContainer) {
+                const alerts = data.oldStock || [];
+                if (alerts.length > 0) {
+                    reorderContainer.innerHTML = alerts.map(p => `
+                        <div class="alert-item border-start border-danger border-3">
+                            <span class="small text-bright">${p.brand} ${p.name}</span>
+                            <span class="badge bg-danger text-white">${p.qty} kg</span>
+                        </div>
+                    `).join('');
+                } else {
+                    reorderContainer.innerHTML = '<p class="text-success small p-2">Stock levels are healthy.</p>';
+                }
+            }
+
+            // 4. RENDER CHARTS (These are now "unblocked" from the errors above)
+            renderBICharts(data.topProfitLabels || [], data.topProfits || [], data.topQtyLabels || [], data.topQtys || []);
+            renderBagCharts(data.topBagLabels || [], data.topBags || []);
+
+        } catch (err) { 
+            console.error("BI Sync Error:", err); 
+        }
+    }
+
+    function renderBICharts(pLabels, profits, qLabels, qtys) {
+        const ctxP = document.getElementById('profitChart').getContext('2d');
+        const ctxD = document.getElementById('distChart').getContext('2d');
+
+        if(window.pChart) window.pChart.destroy();
+        if(window.qChart) window.qChart.destroy();
+
+        window.pChart = new Chart(ctxP, {
+            type: 'bar', data: { labels: pLabels, datasets: [{ data: profits, backgroundColor: '#10B981', borderRadius: 6 }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        window.qChart = new Chart(ctxD, {
+            type: 'pie', data: { labels: qLabels, datasets: [{ data: qtys, backgroundColor: ['#3B82F6', '#6366F1', '#8B5CF6'], borderWidth: 2, borderColor: '#1e293b' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+    
+    function renderWeeklyChart(labels, profits) {
+        const ctx = document.getElementById('weeklyProfitChart').getContext('2d');
+        
+        if(window.weeklyChartInstance) window.weeklyChartInstance.destroy();
+
+        window.weeklyChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Profit',
+                    data: profits,
+                    backgroundColor: '#F59E0B', // Same orange/yellow theme
+                    borderRadius: 8,
+                    barThickness: 30
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { color: '#94a3b8', callback: (val) => '₹' + val.toLocaleString() },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                    }
+                }
+            }
+        });
+    }
+    
+    
+
+    function renderBagCharts(labels, counts) {
+        // 🟢 FIXED: Only look for the Pie Chart canvas
+        const canvasBP = document.getElementById('bagPieChart');
+        if (!canvasBP) return; // Safety check
+        
+        const ctxBP = canvasBP.getContext('2d');
+
+        if(window.bpChart) window.bpChart.destroy();
+
+        window.bpChart = new Chart(ctxBP, {
+            type: 'pie', 
+            data: { 
+                labels: labels, 
+                datasets: [{ 
+                    data: counts, 
+                    backgroundColor: ['#F59E0B', '#D97706', '#B45309', '#92400E', '#78350F'], 
+                    borderWidth: 2, 
+                    borderColor: '#1e293b' 
+                }] 
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { 
+                        display: false
+                       
+                    } 
+                } 
+            }
+        });
+    }
+
+    window.onload = loadStats;
+</script>
+</body>
+</html>

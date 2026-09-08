@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="security.js"></script>
+    <title>NomNom Pro | Customer Database</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+    
+    .glass-card { 
+        background: #1e293b !important; 
+        border-radius: 12px; 
+        border: 1px solid rgba(255,255,255,0.1); 
+    }
+
+    /* 🟢 KILL WHITE BACKGROUNDS ON TABLE & ROWS */
+    .table {
+        background-color: transparent !important;
+        color: #ffffff !important;
+        border-collapse: separate;
+        border-spacing: 0 8px;
+    }
+
+    /* This targets the white rows seen in your screenshot */
+    .table tbody tr {
+        background-color: #1e293b !important; 
+        transition: transform 0.2s;
+    }
+
+    .table td {
+        background-color: #1e293b !important; /* Force cell background dark */
+        color: #ffffff !important;           /* Force cell text white */
+        border-top: 1px solid rgba(255,255,255,0.05) !important;
+        border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+        padding: 15px 10px !important;
+    }
+
+    .table thead th {
+        background-color: #0f172a !important;
+        color: #60a5fa !important;
+        border: none !important;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        padding-bottom: 15px !important;
+    }
+
+    /* Ensure links are bright blue */
+    .table td a {
+        color: #60a5fa !important;
+        font-weight: bold;
+        text-decoration: none;
+    }
+
+    /* Fix muted text visibility (addresses/---) */
+    .text-muted {
+        color: #94a3b8 !important;
+    }
+    
+    
+
+    /* Modal Fixes */
+    .modal-content {
+        background-color: #1e293b !important;
+        border: 1px solid #3b82f6;
+        color: white !important;
+    }
+    
+    #custSearch {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    border: 1px solid #334155 !important;
+}
+
+#custSearch::placeholder {
+    color: #94a3b8;
+}
+</style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div class="d-flex align-items-center">
+            <a href="index.html" class="btn btn-outline-primary me-3"><i class="bi bi-arrow-left"></i></a>
+            <h2 class="fw-bold m-0">Customer Database</h2>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCustModal">
+            <i class="bi bi-person-plus me-2"></i>New Customer
+        </button>
+    </div>
+    <div class="modal fade" id="editCustomerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-primary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Edit Customer Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+           
+              <input type="hidden" id="edit-cust-id">
+                <input type="hidden" id="edit-db-id">
+                
+<input type="hidden" id="edit-debt">
+                 <div class="mb-3">
+                    <label class="form-label small text-muted">Full Name</label>
+                    <input type="text" id="edit-name" class="form-control bg-dark text-white border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Phone Number</label>
+                    <input type="text" id="edit-phone" class="form-control bg-dark text-white border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Address</label>
+                    <textarea id="edit-address" class="form-control bg-dark text-white border-secondary"></textarea>
+                </div>
+                <button class="btn btn-primary w-100" onclick="updateCustomer()">SAVE CHANGES</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="row mb-4 g-3 align-items-stretch">
+    <div class="col-md-2">
+        <div class="glass-card p-3 h-100 text-center d-flex flex-column justify-content-center">
+            <div class="text-muted small text-uppercase fw-bold mb-1">Total Customers</div>
+            <h3 id="stat-total" class="m-0 fw-bold text-primary">0</h3>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="glass-card p-3 h-100 d-flex align-items-center">
+            <div class="flex-grow-1 position-relative">
+                <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                <input type="text" 
+                       class="form-control form-control-lg ps-5 bg-dark text-white border-0" 
+                       id="custSearch" 
+                       placeholder="SEARCH BY NAME OR PHONE..."
+                       style="background: transparent !important;">
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="glass-card p-2 h-100">
+            <button class="btn btn-lg btn-outline-success border-0 w-100 h-100 fw-bold d-flex flex-column align-items-center justify-content-center" 
+                    onclick="downloadCustomerDatabase()">
+                <i class="bi bi-file-earmark-excel fs-4 mb-1"></i>
+                <span style="font-size: 0.8rem;">DOWNLOAD DATABASE</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+    <div class="glass-card p-4">
+        
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+    <tr class="text-muted small">
+        <th>CUST ID</th>
+        <th>NAME</th>
+        <th>PHONE</th>
+        <th>ADDRESS</th> <th class="text-center">ACTIONS</th>
+    </tr>
+</thead>
+                <tbody id="customerTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addCustModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Customer Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Full Name</label>
+                    <input type="text" id="custName" class="form-control bg-dark text-white border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Phone Number</label>
+                    <input type="text" id="custPhone" class="form-control bg-dark text-white border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Address</label>
+                    <textarea id="custAddress" class="form-control bg-dark text-white border-secondary"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-primary w-100" onclick="saveCustomer()">SAVE CUSTOMER</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    
+async function loadCustomers() {
+    try {
+        // 🟢 FIXED: Using the specific debt-status endpoint to get all data
+        const res = await fetch('http://localhost:8081/view-customers-debt');
+        const data = await res.json();
+        const tbody = document.getElementById('customerTableBody'); 
+        
+        tbody.innerHTML = '';
+        document.getElementById('stat-total').innerText = data.length || 0;
+
+        // Sort alphabetically by name
+        data.sort((a, b) => a.name.localeCompare(b.name));
+
+        data.forEach(c => {
+            const displayId = "NOM-" + (1000 + c.id);
+            tbody.innerHTML += `
+                <tr>
+                    <td>
+                        <a href="customer-profile.html?id=${c.id}" class="fw-bold text-primary text-decoration-none">
+                            ${displayId}
+                        </a>
+                    </td>
+                    <td class="fw-bold">${c.name}</td>
+                    <td>
+                        <a href="https://wa.me/91${c.phone}" target="_blank" class="text-decoration-none fw-bold" style="color: #25D366;">
+                            <i class="bi bi-whatsapp me-1"></i>${c.phone}
+                        </a>
+                    </td>
+                    <td class="small text-muted">${c.address || '---'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick='openEditModal(${JSON.stringify(c)})'>
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCust(${c.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+    
+
+       
+     // Add this inside the loadCustomers function after the table is built
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchPhone = urlParams.get('search');
+        if (searchPhone) {
+            const searchInput = document.getElementById('custSearch');
+            searchInput.value = searchPhone;
+            // Trigger the search logic manually
+            const event = new Event('input');
+            searchInput.dispatchEvent(event);
+            // Optional: Highlight the search box to show it's filtered
+            searchInput.classList.add('border-primary');
+        }
+        
+    } catch (err) {
+        console.error("Database sync error:", err);
+    }
+    }
+    
+//🟢 NEW: Real-time Table Filter Logic
+document.getElementById('custSearch').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#customerTableBody tr');
+
+    rows.forEach(row => {
+        // Search across Name (2nd column) and Phone (3rd column)
+        const name = row.cells[1].innerText.toLowerCase();
+        const phone = row.cells[2].innerText.toLowerCase();
+        
+        if (name.includes(searchTerm) || phone.includes(searchTerm)) {
+            row.style.display = ""; // Show row
+        } else {
+            row.style.display = "none"; // Hide row
+        }
+    });
+});
+    
+    function openEditModal(customer) {
+        document.getElementById('edit-db-id').value = customer.id;
+        document.getElementById('edit-cust-id').value = customer.custId;
+        document.getElementById('edit-debt').value = customer.debt; // THIS SAVES THE MONEY
+        document.getElementById('edit-name').value = customer.name;
+        document.getElementById('edit-phone').value = customer.phone;
+        document.getElementById('edit-address').value = customer.address || "";
+        
+        new bootstrap.Modal(document.getElementById('editCustomerModal')).show();
+    }
+    
+    async function downloadCustomerDatabase() {
+        try {
+            // Fetch fresh data from your debt-status endpoint
+            const res = await fetch('http://localhost:8081/view-customers-debt');
+            const customers = await res.json();
+
+            if (customers.length === 0) return alert("No customers to download!");
+
+            // 🟢 1. Create CSV Header
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Customer ID,Name,Phone,Address,Current Debt (₹)\r\n";
+
+            // 🟢 2. Process each customer
+            customers.forEach(c => {
+                const displayId = "NOM-" + (1000 + c.id);
+                const name = c.name;
+                const phone = c.phone;
+                const addr = (c.address || "---").replace(/,/g, " "); // Remove commas to prevent CSV break
+                const debt = c.debt || 0;
+
+                csvContent += `${displayId},${name},${phone},${addr},${debt}\r\n`;
+            });
+
+            // 🟢 3. Trigger Download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Ethirajan_Mandi_Customers_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (err) {
+            console.error("Download failed:", err);
+            alert("Error generating database file.");
+        }
+    }
+    
+    async function updateCustomer() {
+        const updatedData = {
+            id: document.getElementById('edit-db-id').value,
+            name: document.getElementById('edit-name').value,
+            phone: document.getElementById('edit-phone').value,
+            address: document.getElementById('edit-address').value
+        };
+
+        try {
+            const res = await fetch(`http://localhost:8081/update-customer`, { // 🟢 New Endpoint
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            });
+
+            if (res.ok) {
+                alert("Customer details updated successfully!");
+                location.reload();
+            } else {
+                const errorText = await res.text();
+                alert("Error updating customer: " + errorText);
+            }
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            alert("Could not connect to the server.");
+        }
+    }
+
+    async function saveCustomer() {
+        const name = document.getElementById('custName').value;
+        const phone = document.getElementById('custPhone').value;
+        const address = document.getElementById('custAddress').value;
+        // Generate a clean ID
+        const custId = "NOM-" + (Math.floor(Math.random() * 9000) + 1000);
+
+        if(!name || !phone) {
+            alert("Name and Phone are required!");
+            return;
+        }
+        const customerData = {
+            name: name,
+            phone: phone,
+            address: address,
+            debt: 0.0 // Match the Java variable name exactly
+        };
+        try {
+            const response = await fetch('http://localhost:8081/add-customer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(customerData)
+            });
+
+            if (response.ok) {
+                alert("Customer Saved to Database!");
+                location.reload(); // Refresh to see the new row
+            } else {
+                const errorData = await response.text();
+                console.error("Server Error:", errorData);
+                alert("Error saving customer. Check console.");
+            }
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            alert("Could not connect to server. Is Eclipse running?");
+        }
+    }
+    
+    
+    
+    async function deleteCust(id) {
+        if (confirm("Delete this customer?")) {
+            await fetch(`http://localhost:8081/delete-customer/${id}`, { method: 'DELETE' });
+            loadCustomers();
+        }
+    }
+
+    loadCustomers();
+</script>
+</body>
+</html>

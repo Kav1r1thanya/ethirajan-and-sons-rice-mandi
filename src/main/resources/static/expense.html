@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Log | Ethirajan & Sons</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .glass-card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; }
+        .table { color: white !important; }
+        .table tr { background: #1e293b !important; border-bottom: 1px solid #334155; }
+    </style>
+</head>
+<body onload="init()">
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4">
+        <a href="index.html" class="btn btn-outline-primary me-3">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h2 class="fw-bold m-0 text-uppercase tracking-wider">Expense Management</h2>
+        
+        <div class="ms-auto">
+            <button class="btn btn-sm btn-outline-success px-3 fw-bold" onclick="downloadExpenseExcel()">
+                <i class="bi bi-file-earmark-excel me-1"></i> Download Report
+            </button>
+        </div>
+    </div>
+    
+    
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100 border-primary border-opacity-25">
+                <h5 class="text-primary fw-bold mb-4"><i class="bi bi-plus-circle me-2"></i>Log New Expense</h5>
+                
+                <div class="mb-3">
+                    <label class="form-label small text-muted fw-bold">EXPENSE DATE</label>
+                    <input type="date" id="logDate" class="form-control bg-dark text-white border-secondary" id="todayLimit1">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted fw-bold">DESCRIPTION</label>
+                    <input type="text" id="expDesc" class="form-control bg-dark text-white border-secondary" placeholder="e.g. EB Bill">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label small text-muted fw-bold">AMOUNT (₹)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark text-muted border-secondary">₹</span>
+                        <input type="number" id="expAmount" class="form-control bg-dark text-white border-secondary" placeholder="0.00">
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label small text-muted fw-bold">CATEGORY</label>
+                    <select id="expCat" class="form-select bg-dark text-white border-secondary">
+                        <option value="Salary">Worker Salary</option>
+                        <option value="Travel">Petrol</option>
+                        <option value="Utility">EB / Rent / Water</option>
+                        <option value="Home">Personal</option>
+                        <option value="Misc">Miscellaneous</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary w-100 py-3 fw-bold shadow-sm" onclick="saveExpense()">
+                    <i class="bi bi-check2-circle me-2"></i>SAVE EXPENSE
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div class="btn-group shadow-sm" role="group">
+        <button type="button" class="btn btn-outline-primary active px-3" id="btnDaily" onclick="setMode('daily')">Daily View</button>
+        <button type="button" class="btn btn-outline-primary px-3" id="btnMonthly" onclick="setMode('monthly')">Monthly View</button>
+    </div>
+    
+    <div class="d-flex gap-2">
+        <input type="date" id="dayPicker" class="form-control form-control-sm bg-dark text-white" onchange="refreshView()">
+        
+        <select id="monthPicker" class="form-select form-select-sm bg-dark text-white" style="display:none;" onchange="refreshView()">
+            <option value="0">January</option>
+            <option value="1">February</option>
+            <option value="2">March</option>
+            <option value="3">April</option>
+            <option value="4">May</option>
+            <option value="5">June</option>
+            <option value="6">July</option>
+            <option value="7">August</option>
+            <option value="8">September</option>
+            <option value="9">October</option>
+            <option value="10">November</option>
+            <option value="11">December</option>
+        </select>
+        <input type="number" id="yearPicker" class="form-control form-control-sm bg-dark text-white" style="display:none; width: 85px;" value="2026" onchange="refreshView()">
+    </div>
+    
+    
+    
+    <div class="text-end">
+        <small class="text-muted d-block small">TOTAL FOR PERIOD</small>
+        <h3 class="text-warning fw-bold m-0">₹<span id="periodTotal">0</span></h3>
+    </div>
+</div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle border-top border-secondary border-opacity-25">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>DATE</th>
+                                <th>DESCRIPTION</th>
+                                <th>CATEGORY</th>
+                                <th class="text-end">AMOUNT</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenseBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    
+    
+    let currentView = 'daily';
+
+    function setMode(mode) {
+        currentView = mode;
+        
+        // Toggle Button Styles
+        document.getElementById('btnDaily').classList.toggle('active', mode === 'daily');
+        document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
+        
+        // Toggle Picker Visibility
+        document.getElementById('dayPicker').style.display = (mode === 'daily') ? 'block' : 'none';
+        document.getElementById('monthPicker').style.display = (mode === 'monthly') ? 'block' : 'none';
+        document.getElementById('yearPicker').style.display = (mode === 'monthly') ? 'block' : 'none';
+        
+        refreshView();
+    }
+
+    async function refreshView() {
+        let start, end;
+
+        if (currentView === 'daily') {
+            const pickerDate = document.getElementById('dayPicker').value;
+            start = end = pickerDate;
+        } else {
+            const month = parseInt(document.getElementById('monthPicker').value);
+            const year = parseInt(document.getElementById('yearPicker').value);
+            
+            // Calculate first and last day of the chosen month
+            start = new Date(year, month, 1).toISOString().split('T')[0];
+            end = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        }
+
+        try {
+            const res = await fetch(`http://localhost:8081/view-expenses?start=${start}&end=${end}`);
+            const data = await res.json();
+            
+            const body = document.getElementById('expenseBody');
+            let total = 0;
+            
+            body.innerHTML = data.map(exp => {
+                total += exp.amount;
+                return `<tr>
+                    <td>${new Date(exp.date).toLocaleDateString('en-GB')}</td>
+                    <td>${exp.description}</td>
+                    <td><span class="badge bg-secondary">${exp.category}</span></td>
+                    <td class="text-end fw-bold">₹${exp.amount}</td>
+                    <td><i class="bi bi-trash text-danger" onclick="deleteExp(${exp.id})" style="cursor:pointer"></i></td>
+                </tr>`;
+            }).join('');
+            
+            document.getElementById('periodTotal').innerText = total.toLocaleString('en-IN');
+        } catch (err) {
+            console.error("Fetch Error:", err);
+        }
+    }
+
+    // Ensure the form always uses the date currently selected in the picker
+     function init() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // 🟢 Prevent future dates on both pickers
+    const logDateInput = document.getElementById('logDate');
+    const dayPickerInput = document.getElementById('dayPicker');
+    logDateInput.setAttribute('max', todayStr);
+    dayPickerInput.setAttribute('max', todayStr);
+
+    // Set default values to Today
+    logDateInput.value = todayStr;
+    dayPickerInput.value = todayStr;
+
+    // Monthly picker setup
+    const today = new Date();
+    document.getElementById('monthPicker').value = today.getMonth();
+    document.getElementById('yearPicker').value = today.getFullYear();
+    
+    refreshView();
+}
+    
+     async function downloadExpenseExcel() {
+    	    const body = document.getElementById('expenseBody');
+    	    const rows = body.querySelectorAll('tr');
+    	    
+    	    if (rows.length === 0) return alert("No data available to download!");
+
+    	    const mode = currentView === 'daily' ? "Daily" : "Monthly";
+    	    const dateLabel = document.getElementById('dayPicker').value;
+
+    	    // 🟢 1. Create CSV Header
+    	    let csvContent = "data:text/csv;charset=utf-8,";
+    	    csvContent += "Date,Description,Category,Amount (INR)\r\n";
+
+    	    // 🟢 2. Loop through table rows to get data
+    	    rows.forEach(row => {
+    	        const cols = row.querySelectorAll('td');
+    	        const date = cols[0].innerText;
+    	        const desc = cols[1].innerText;
+    	        const cat = cols[2].innerText;
+    	        const amt = cols[3].innerText.replace(/[^\d.]/g, ''); // Remove ₹ symbol
+
+    	        csvContent += `${date},${desc},${cat},${amt}\r\n`;
+    	    });
+
+    	    // 🟢 3. Trigger Download
+    	    const encodedUri = encodeURI(csvContent);
+    	    const link = document.createElement("a");
+    	    link.setAttribute("href", encodedUri);
+    	    link.setAttribute("download", `Mandi_Expenses_${mode}_${dateLabel}.csv`);
+    	    document.body.appendChild(link);
+    	    
+    	    link.click();
+    	    document.body.removeChild(link);
+    	}
+
+     async function saveExpense() {
+    	    const logDateInput = document.getElementById('logDate');
+    	    
+    	    // 1. Get the date from the picker (this is midnight 00:00:00)
+    	    const selectedDate = new Date(logDateInput.value);
+    	    selectedDate.setHours(0, 0, 0, 0);
+
+    	    // 2. Get right now, but FORCE it to midnight 00:00:00
+    	    const today = new Date();
+    	    today.setHours(0, 0, 0, 0);
+
+    	    const data = {
+    	        description: document.getElementById('expDesc').value.trim(),
+    	        amount: document.getElementById('expAmount').value,
+    	        category: document.getElementById('expCat').value,
+    	        date: logDateInput.value 
+    	    };
+
+
+    	    // Check for empty fields
+    	    if (!data.description || !data.amount || !data.date) {
+    	        return alert("Please fill all fields!");
+    	    }
+
+    	    
+    	    
+    	    
+    	    if (isNaN(selectedDate.getTime())) {
+    	        return alert("❌ This date does not exist!");
+    	    }
+
+    	    // Now this will allow today because selectedDate (00:00) 
+    	    // is EQUAL to today (00:00), not GREATER THAN.
+    	    if (selectedDate > today) {
+    	        return alert("❌ Cannot log future expenses! Please select today or a past date.");
+    	    }
+
+    	    // Check for Future Dates
+    	    
+
+    	    // Check for extreme past dates (optional safety, e.g., before year 2000)
+    	    if (selectedDate.getFullYear() < 2000) {
+    	        return alert("❌ Invalid year! Please check the date again.");
+    	    }
+
+    	    // --- 🟢 PROCEED TO SAVE ---
+    	    try {
+    	        const res = await fetch('http://localhost:8081/add-expense', {
+    	            method: 'POST',
+    	            headers: {'Content-Type': 'application/json'},
+    	            body: JSON.stringify(data)
+    	        });
+
+    	        if (res.ok) {
+    	            alert("Expense Logged successfully!");
+    	            
+    	            // Reset form and return date to Today
+    	            document.getElementById('expDesc').value = "";
+    	            document.getElementById('expAmount').value = "";
+    	            logDateInput.value = new Date().toISOString().split('T')[0];
+    	            
+    	            refreshView();
+    	        }
+    	    } catch (err) {
+    	        console.error("Save Error:", err);
+    	        alert("Server error! Could not save expense.");
+    	    }
+    	}
+
+    
+
+
+    async function deleteExp(id) {
+        if(confirm("Delete this log?")) {
+            await fetch(`http://localhost:8081/delete-expense/${id}`, {method: 'DELETE'});
+            refreshView();
+        }
+    }
+</script>
+</body>
+</html>

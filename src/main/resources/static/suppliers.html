@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="security.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NomNom | Supplier Profiles</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; padding: 40px; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; }
+        .supplier-link { text-decoration: none; color: #60a5fa; cursor: pointer; }
+        .supplier-link:hover { text-decoration: underline; }
+        
+        .table-dark { --bs-table-bg: transparent; }
+        
+        /* Force all modal inputs to have visible text */
+.modal-body input, 
+.modal-body select, 
+.modal-body textarea {
+    color: #ffffff !important; /* Bright white text */
+    background-color: #1e293b !important; /* Slightly lighter dark blue for contrast */
+}
+
+/* Make placeholder text (the hints) light gray so they are visible */
+.modal-body input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1;
+}
+
+/* Ensure the labels above the inputs are bright enough */
+.text-muted {
+    color: #cbd5e1 !important; 
+}
+        
+        
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="d-flex align-items-center mb-5">
+            <a href="index.html" class="btn btn-outline-primary me-3"><i class="bi bi-arrow-left"></i></a>
+            <h2 class="fw-bold m-0">Supplier Management</h2>
+            <div id="total-owed-badge" class="ms-auto badge bg-danger p-2 fs-6">Total Owed: ₹0</div>
+        </div>
+
+        <div id="main-view" class="row">
+            <div class="col-md-4">
+                <div class="glass-card p-4">
+                    <h5 class="text-primary mb-3" id="form-title">Register New Supplier</h5>
+                    <input type="hidden" id="supId">
+                    <div class="mb-3"><input type="text" id="supName" class="form-control bg-dark text-white border-secondary" placeholder="Business Name"></div>
+                    <div class="mb-3"><input type="text" id="supPhone" class="form-control bg-dark text-white border-secondary" placeholder="Phone"></div>
+                    <div class="mb-3"><textarea id="supAddress" class="form-control bg-dark text-white border-secondary" placeholder="Address"></textarea></div>
+                    <button class="btn btn-primary w-100" id="save-btn" onclick="addSupplier()">Add Supplier</button>
+                    <button class="btn btn-secondary w-100 mt-2 d-none" id="cancel-btn" onclick="resetForm()">Cancel Edit</button>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="glass-card p-4">
+                    <table class="table table-dark align-middle">
+                        <thead><tr><th>Name</th><th>Balance</th><th>Actions</th></tr></thead>
+                        <tbody id="supplier-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="detail-view" class="d-none">
+    <button class="btn btn-sm btn-link text-secondary mb-3" onclick="showMainView()"><i class="bi bi-arrow-left"></i> Back to List</button>
+    
+    <div class="glass-card p-4 mb-4">
+        <div class="row">
+            <div class="col-md-6">
+                <h3 id="det-name" class="text-info fw-bold"></h3>
+                <p class="mb-1"><i class="bi bi-telephone me-2"></i><span id="det-phone"></span></p>
+                <p class="mb-0"><i class="bi bi-geo-alt me-2"></i><span id="det-address"></span></p>
+            </div>
+            <div class="col-md-6 text-end">
+    <h2 id="det-balance" class="text-danger fw-bold mb-3">₹0</h2>
+    <button class="btn btn-outline-success me-2" onclick="downloadSupplierLedger()">
+        <i class="bi bi-file-earmark-excel me-1"></i> Download Ledger
+    </button>
+    <button class="btn btn-primary me-2" onclick="openSupplyModal()">+ Log New Supply</button>
+    <button class="btn btn-success" onclick="payPrompt()">Record Payment</button>
+</div>
+        </div>
+    </div>
+
+    <div class="glass-card p-4">
+        <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Order & Transaction History</h5>
+        <table class="table table-dark table-hover small">
+            
+                <thead>
+    <tr>
+        <th>Date</th>
+        <th>Item / Description</th>
+        <th>Qty (Bags)</th>
+        <th>Total Cost</th>
+        <th></th> </tr>
+</thead>
+            
+            <tbody id="history-body">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+    <script>
+    let currentSuppliers = [];
+
+    async function loadSuppliers() {
+        try {
+            const response = await fetch('/view-suppliers');
+            if (!response.ok) throw new Error("Failed to fetch");
+            
+            currentSuppliers = await response.json();
+            const tbody = document.getElementById('supplier-table-body');
+            let total = 0;
+            tbody.innerHTML = '';
+
+            currentSuppliers.forEach(s => {
+                // We use || 0 to prevent "NaN" errors if the field is empty
+                const debt = s.balanceDebt || 0;
+                total += debt;
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td><a class="supplier-link fw-bold" onclick="viewDetails(${s.id})">${s.name}</a></td>
+                        <td class="text-danger fw-bold">₹${debt.toLocaleString()}</td>
+                        <td>
+                        <button type="button" class="btn btn-sm text-warning" onclick="editSupplier(${s.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm text-danger" onclick="deleteSupplier(${s.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                    </tr>`;
+            });
+            document.getElementById('total-owed-badge').innerText = `Total Owed: ₹${total.toLocaleString()}`;
+        } catch (err) {
+            console.error("Error loading suppliers:", err);
+        }
+    }
+    
+    function showMainView() {
+        document.getElementById('main-view').classList.remove('d-none');
+        document.getElementById('detail-view').classList.add('d-none');
+        loadSuppliers(); // Refresh the main table
+    }
+    
+    function viewDetails(id) {
+        selectedSup = currentSuppliers.find(x => x.id === id);
+        if(!selectedSup) return;
+
+        document.getElementById('main-view').classList.add('d-none');
+        document.getElementById('detail-view').classList.remove('d-none');
+
+        // Fill UI - Using || to show "Not Provided" if the field is empty
+        document.getElementById('det-name').innerText = selectedSup.name;
+        document.getElementById('det-phone').innerText = selectedSup.phone || "No phone added";
+        document.getElementById('det-address').innerText = selectedSup.address || "No address added";
+        document.getElementById('det-balance').innerText = `₹${(selectedSup.balanceDebt || 0).toLocaleString()}`;
+        
+        loadPurchaseHistory(id); 
+    }
+    
+    let allInventory = [];
+
+ // Load products so dad can pick which rice arrived
+// 1. The Delete Function
+async function deleteSupplier(id) {
+    console.log("Attempting to delete ID:", id);
+    if (confirm("Are you sure you want to delete this supplier?")) {
+        const res = await fetch(`/delete-supplier/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            console.log("Delete successful");
+            loadSuppliers();
+        } else {
+            alert("Delete failed on server.");
+        }
+    }
+}
+
+// 2. The Edit Function
+function editSupplier(id) {
+    console.log("Opening Edit for ID:", id);
+    const s = currentSuppliers.find(x => x.id === id);
+    if (!s) return;
+
+    document.getElementById('supId').value = s.id;
+    document.getElementById('supName').value = s.name;
+    document.getElementById('supPhone').value = s.phone;
+    document.getElementById('supAddress').value = s.address;
+    
+    document.getElementById('form-title').innerText = "Edit Supplier Details";
+    document.getElementById('save-btn').innerText = "Update Supplier";
+    document.getElementById('cancel-btn').classList.remove('d-none');
+}
+
+// 3. The Supply Modal Trigger
+// Function to filter products as Appa types
+function filterRiceSearch() {
+    const query = document.getElementById('riceSearchInput').value.toLowerCase();
+    const resultsDiv = document.getElementById('riceSearchResults');
+    
+    if (query.length < 1) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    // Filter from the allInventory array we load in openSupplyModal
+    const filtered = allInventory.filter(p => 
+        p.brand.toLowerCase().includes(query) || 
+        p.name.toLowerCase().includes(query)
+    );
+
+    if (filtered.length > 0) {
+        resultsDiv.innerHTML = filtered.map(p => `
+            <button type="button" class="list-group-item list-group-item-action bg-dark text-white border-secondary" 
+                onclick="selectRiceForSupply(${p.id}, '${p.brand} - ${p.name} (${p.bagWeight}kg)')">
+                <div class="fw-bold text-info">${p.brand}</div>
+                <small class="text-muted">${p.name} (${p.bagWeight}kg)</small>
+            </button>
+        `).join('');
+        resultsDiv.style.display = 'block';
+    } else {
+        resultsDiv.innerHTML = '<div class="list-group-item bg-dark text-muted">No rice found with that name.</div>';
+        resultsDiv.style.display = 'block';
+    }
+}
+
+// Function to handle clicking a result
+function selectRiceForSupply(id, displayName) {
+    document.getElementById('purchaseProductId').value = id;
+    document.getElementById('riceSearchInput').value = displayName;
+    document.getElementById('riceSearchResults').style.display = 'none';
+}
+
+// Close the search list if user clicks away
+document.addEventListener('click', function(e) {
+    const searchInput = document.getElementById('riceSearchInput');
+    const resultsDiv = document.getElementById('riceSearchResults');
+    if (searchInput && !searchInput.contains(e.target)) {
+        resultsDiv.style.display = 'none';
+    }
+});
+
+async function openSupplyModal() {
+    document.getElementById('modalSupName').innerText = selectedSup.name;
+    
+    // Reset the search fields
+    document.getElementById('riceSearchInput').value = '';
+    document.getElementById('purchaseProductId').value = '';
+
+    // Load inventory once so the search is instant
+    try {
+        const res = await fetch('/view-products');
+        allInventory = await res.json();
+        
+        const myModal = new bootstrap.Modal(document.getElementById('supplyModal'));
+        myModal.show();
+    } catch (err) {
+        alert("Error loading inventory for search.");
+    }
+}
+
+function downloadSupplierLedger() {
+    const name = document.getElementById('det-name').innerText;
+    const body = document.getElementById('history-body');
+    const rows = body.querySelectorAll('tr');
+
+    if (rows.length === 0) return alert("No transactions to download!");
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Date,Description,Qty,Amount (INR)\r\n";
+
+    rows.forEach(row => {
+        const cols = row.querySelectorAll('td');
+        const date = cols[0].innerText;
+        const desc = cols[1].innerText;
+        const qty = cols[2].innerText;
+        // Clean the amount: remove ₹ and commas, keep the sign (+/-)
+        const amt = cols[3].innerText.replace(/[₹,]/g, '').trim();
+
+        csvContent += `${date},"${desc}",${qty},${amt}\r\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${name}_Ledger_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+}
+
+
+async function deleteHistoryRecord(recordId) {
+    if (confirm("⚠️ Delete this record? This will NOT automatically reverse the supplier's balance. You must manually adjust the balance if needed.")) {
+        // Note: You may need to add a @DeleteMapping in StoreController for PurchaseRecord
+        const res = await fetch(`/delete-purchase-record/${recordId}`, { method: 'DELETE' });
+        if (res.ok) {
+            alert("Record deleted.");
+            viewDetails(selectedSup.id); // Refresh history
+        }
+    }
+}
+
+ async function submitPurchase() {
+     const productId = document.getElementById('purchaseProductId').value;
+     const bags = parseInt(document.getElementById('purchaseBags').value);
+     const buyingPrice = parseFloat(document.getElementById('purchasePrice').value);
+     
+     if(!productId || !bags || !buyingPrice) return alert("Please fill all fields!");
+
+     // Find the product details to calculate total weight
+     const product = allInventory.find(p => p.id == productId);
+     const totalWeight = bags * product.bagWeight;
+     const totalCost = bags * buyingPrice;
+
+     const purchaseData = {
+         productId: productId,
+         supplierId: selectedSup.id,
+         addedQty: totalWeight,
+         cost: totalCost,
+         buyingPrice: buyingPrice
+     };
+
+     const response = await fetch('/log-purchase-order', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify(purchaseData)
+     });
+
+     if(response.ok) {
+         alert("Stock updated and debt added!");
+         location.reload();
+     }
+ }
+
+    async function addSupplier() {
+        const idField = document.getElementById('supId').value;
+        const supplier = {
+            name: document.getElementById('supName').value,
+            phone: document.getElementById('supPhone').value,
+            address: document.getElementById('supAddress').value
+        };
+
+        if(!supplier.name) return alert("Please enter a Business Name");
+
+        // Logic: If ID exists, Edit. If not, Add.
+        const url = idField ? `/edit-supplier/${idField}` : '/add-supplier';
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(supplier)
+            });
+
+            if(response.ok) {
+                resetForm();
+                loadSuppliers();
+            }
+        } catch (err) {
+            alert("Error saving supplier. Check Java Console.");
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('supId').value = '';
+        document.getElementById('supName').value = '';
+        document.getElementById('supPhone').value = '';
+        document.getElementById('supAddress').value = '';
+        document.getElementById('form-title').innerText = "Register New Supplier";
+        document.getElementById('save-btn').innerText = "Add Supplier";
+    }
+    
+    async function payPrompt() {
+        const amount = prompt(`How much are you paying to ${selectedSup.name}?`);
+        if (!amount || isNaN(amount)) return;
+
+        try {
+            const response = await fetch(`/pay-supplier/${selectedSup.id}/${amount}`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                alert("Payment Recorded!");
+                // Update the UI immediately
+                selectedSup.balanceDebt -= parseFloat(amount);
+                document.getElementById('det-balance').innerText = `₹${selectedSup.balanceDebt.toLocaleString()}`;
+            }
+        } catch (err) {
+            alert("Error recording payment.");
+        }
+    }
+    
+    function toggleSupplyType(isNew) {
+        document.getElementById('formExisting').classList.toggle('d-none', isNew);
+        document.getElementById('formNew').classList.toggle('d-none', !isNew);
+    }
+
+
+    async function submitSupply() {
+        const isNew = document.getElementById('typeNew').checked;
+        const bags = parseInt(document.getElementById('purchaseBags').value);
+        const costPerBag = parseFloat(document.getElementById('purchaseCostPrice').value);
+        
+        if(!bags || !costPerBag) return alert("Enter quantity and purchase price!");
+
+        let supplyData = {
+            supplierId: selectedSup.id,
+            bags: bags,
+            totalCost: bags * costPerBag,
+            buyingPrice: costPerBag,
+            isNewProduct: isNew
+        };
+
+        if(isNew) {
+            supplyData.brand = document.getElementById('newBrand').value;
+            supplyData.variety = document.getElementById('newName').value;
+            supplyData.retailPrice = document.getElementById('newPrice').value;
+            supplyData.wholesalePrice = document.getElementById('newBagPrice').value;
+            supplyData.weight = document.getElementById('newBagWeight').value;
+            supplyData.minStock = document.getElementById('newMinStock').value;
+        } else {
+            supplyData.productId = document.getElementById('purchaseProductId').value;
+        }
+
+        const res = await fetch('/log-purchase-order', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(supplyData)
+        });
+
+        if(res.ok) {
+            alert("Stock & Debt Updated!");
+            location.reload();
+        }
+    }
+    
+    
+    
+    
+    async function loadPurchaseHistory(supplierId) {
+        const historyBody = document.getElementById('history-body');
+        
+        try {
+            const response = await fetch(`/supplier-history/${supplierId}`);
+            if (!response.ok) throw new Error("Backend not responding");
+            
+            const history = await response.json();
+            console.log("History Data Received:", history); // Check F12 console for this!
+
+            if (history.length === 0) {
+                historyBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No purchase history found.</td></tr>';
+                return;
+            }
+
+            historyBody.innerHTML = history.map(h => {
+                // Check BOTH the type and the name to be 100% sure
+                const isPayment = h.transactionType === 'PAYMENT' || h.itemName.includes('PAYMENT');
+                
+                // Set variables based on type
+                const rowClass = isPayment ? 'text-success' : ''; // Success is Green in Bootstrap
+                const symbol = isPayment ? '-' : '+';
+                const colorClass = isPayment ? 'text-success' : 'text-danger';
+
+             // Inside your loadPurchaseHistory function...
+                return `
+                    <tr class="${rowClass}">
+                        <td>${new Date(h.date).toLocaleDateString('en-IN')}</td>
+                        <td class="fw-bold">${h.itemName}</td>
+                        <td>${isPayment ? '-' : h.bags + ' Bags'}</td>
+                        <td class="fw-bold ${colorClass}">
+                            ${symbol} ₹${(h.cost || 0).toLocaleString()}
+                        </td>
+                        <td class="text-end">
+                            <i class="bi bi-trash text-muted" style="cursor:pointer" onclick="deleteHistoryRecord(${h.id})"></i>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+        } catch (err) {
+            console.error("History Error:", err);
+            historyBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading history rows.</td></tr>';
+        }
+    }
+
+    // Call on load
+    window.onload = loadSuppliers;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="supplyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary shadow-lg">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Purchase Delivery for <span id="modalSupName" class="text-info"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="btn-group w-100 mb-4">
+                    <input type="radio" class="btn-check" name="supplyType" id="typeExisting" checked onclick="toggleSupplyType(false)">
+                    <label class="btn btn-outline-primary" for="typeExisting">Existing Product</label>
+                    
+                    <input type="radio" class="btn-check" name="supplyType" id="typeNew" onclick="toggleSupplyType(true)">
+                    <label class="btn btn-outline-primary" for="typeNew">+ Add New Brand/Variety</label>
+                </div>
+
+                <div id="formExisting">
+    <div class="mb-3 position-relative">
+        <label class="small text-muted mb-2">Search Rice Brand</label>
+        <div class="input-group">
+            <span class="input-group-text bg-secondary border-0 text-light"><i class="bi bi-search"></i></span>
+            <input type="text" id="riceSearchInput" class="form-control bg-secondary text-white border-0" 
+                   placeholder="Type brand name (e.g. Walima, BPT)..." oninput="filterRiceSearch()">
+        </div>
+        
+        <input type="hidden" id="purchaseProductId">
+
+        <div id="riceSearchResults" class="list-group position-absolute w-100 shadow-lg mt-1" 
+             style="z-index: 1060; max-height: 200px; overflow-y: auto; display: none; border: 1px solid #444;">
+            </div>
+    </div>
+</div>
+
+                <div id="formNew" class="d-none">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <input type="text" id="newBrand" class="form-control bg-secondary text-white border-0" placeholder="Brand (e.g. Walima)">
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" id="newName" class="form-control bg-secondary text-white border-0" placeholder="Variety (e.g. Basmati)">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="small text-light">Retail Price/kg</label>
+                            <input type="number" id="newPrice" class="form-control bg-secondary text-white border-0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-light">Wholesale Bag Price (Selling)</label>
+                            <input type="number" id="newBagPrice" class="form-control bg-secondary text-white border-0">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="small text-light">Bag Weight</label>
+                            <select id="newBagWeight" class="form-select bg-secondary text-white border-0">
+                                <option value="26">26 kg</option>
+                                <option value="25">25 kg</option>
+                                <option value="10">10 kg</option>
+                                <option value="5">5 kg</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-light">Low Stock Alert (Bags)</label>
+                            <input type="number" id="newMinStock" class="form-control bg-secondary text-white border-0" value="5">
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="border-secondary">
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small text-muted">How many bags arrived?</label>
+                        <input type="number" id="purchaseBags" class="form-control bg-primary text-white border-0" placeholder="Qty">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small text-muted">Purchase Price per bag (Buying)</label>
+                        <input type="number" id="purchaseCostPrice" class="form-control bg-primary text-white border-0" placeholder="₹ per bag">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-info w-100 fw-bold" onclick="submitSupply()">Confirm Delivery & Update Debt</button>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

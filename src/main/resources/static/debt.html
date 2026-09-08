@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="security.js"></script>
+    <title>NomNom Pro | Debt Ledger</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+    .glass-card { background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+    
+    /* FIX: Make labels and titles bright and visible */
+    .text-muted.small.uppercase, .small.text-muted.mb-1 { 
+        color: #cbd5e1 !important; 
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* FIX: Make Input placeholder text visible */
+    .form-control::placeholder { color: #94a3b8 !important; opacity: 1; }
+    .form-control { color: white !important; }
+
+    .table { color: #f8fafc !important; vertical-align: middle; }
+    .table thead th { 
+        background-color: #020617 !important; 
+        color: #3b82f6 !important; 
+        border-bottom: 2px solid #3b82f6 !important;
+        padding: 15px;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+    }
+    .table tbody td { padding: 15px; border-bottom: 1px solid #334155; }
+    
+    .debt-amt { color: #ff6b6b; font-weight: bold; font-size: 1.1rem; }
+    .cust-link { color: #3b82f6; text-decoration: none; font-weight: 600; }
+    .cust-link:hover { text-decoration: underline; }
+    
+    .overdue-alert { background-color: #dc3545 !important; color: white !important; }
+    .overdue-alert td { background-color: transparent !important; color: white !important; }
+    .overdue-alert a { color: #ffdada !important; }
+</style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-5">
+    <a href="index.html" class="btn btn-outline-primary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h2 class="fw-bold m-0">Customer <span class="text-primary">Debt Ledger</span></h2>
+    
+    <div class="ms-auto">
+        <button class="btn btn-sm btn-outline-success px-3 fw-bold" onclick="downloadDebtLedger()">
+            <i class="bi bi-file-earmark-excel me-1"></i> Download Debt Report
+        </button>
+    </div>
+</div>
+
+    
+    
+
+    <div class="row g-3 mb-4 align-items-stretch">
+    <div class="col-md-3">
+        <div class="glass-card p-3 h-100 text-center d-flex flex-column justify-content-center">
+            <div class="text-muted small uppercase">Total Debt</div>
+            <h3 class="fw-bold text-danger mb-0">₹<span id="total-sum">0</span></h3>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="glass-card p-3 h-100 d-flex flex-column justify-content-center">
+            <label class="small text-muted mb-1">Search Customer</label>
+            <div class="input-group">
+                <span class="input-group-text bg-transparent border-secondary text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="debtSearch" class="form-control bg-dark text-white border-secondary" 
+                       placeholder="Name or Mobile..." oninput="filterMasterLedger()">
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="glass-card p-3 h-100 d-flex flex-column justify-content-center">
+            <label class="small text-muted mb-1">Daily Report</label>
+            <div class="input-group">
+                <input type="date" id="reportDate" class="form-control bg-dark text-white border-secondary">
+                <button class="btn btn-primary" onclick="fetchDailyReport()">
+                    <i class="bi bi-graph-up-arrow"></i>
+                </button>
+                <button class="btn btn-outline-secondary" onclick="loadDebtData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            
+            </div>
+        </div>
+    </div>
+</div>
+    <div class="glass-card p-4">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Last Date</th>
+                        <th>Customer</th>
+                        <th>Mobile (Link)</th>
+                        <th>Amount Due</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="masterDebtTable">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+async function loadDebtData() {
+    try {
+        // 🟢 Using the new endpoint to ensure we get 'lastActivity' dates
+        const response = await fetch('http://localhost:8081/view-customers-debt');
+        const customers = await response.json();
+        const tbody = document.getElementById('masterDebtTable');
+        const totalSpan = document.getElementById('total-sum');
+        
+        tbody.innerHTML = '';
+        let totalOverall = 0;
+        const today = new Date();
+
+        // 🟢 1. DEFAULT SORT: Oldest Activity first
+        customers.sort((a, b) => {
+            const dateA = a.lastActivity ? new Date(a.lastActivity) : new Date(0);
+            const dateB = b.lastActivity ? new Date(b.lastActivity) : new Date(0);
+            return dateA - dateB; 
+        });
+
+        // Only show customers who actually owe money
+        const debtors = customers.filter(c => c.debt > 0);
+
+        debtors.forEach(c => {
+            totalOverall += c.debt;
+            
+            // 🟢 2. CHECK FOR OVERDUE (Red Alert Logic)
+            const lastDate = c.lastActivity ? new Date(c.lastActivity) : null;
+            let isOverdue = false;
+            let diffDays = 0;
+            if (lastDate) {
+                diffDays = Math.ceil(Math.abs(today - lastDate) / (1000 * 60 * 60 * 24));
+                if (diffDays >= 30) isOverdue = true;
+            }
+
+            const displayDate = lastDate ? lastDate.toLocaleDateString('en-IN') : "No Activity";
+            const displayId = "NOM-" + (1000 + c.id);
+
+            // 🟢 3. RENDER with conditional 'overdue-alert' class
+            tbody.innerHTML += `
+                <tr class="${isOverdue ? 'overdue-alert' : ''}">
+                    <td class="small ${isOverdue ? 'text-white' : 'text-muted'}">${displayDate}</td>
+                    <td>
+                        <div class="fw-bold">${isOverdue ? '⚠️ ' : ''}${c.name}</div>
+                        <a href="customer-profile.html?id=${c.id}" 
+                           class="fw-bold text-decoration-none" 
+                           style="color: ${isOverdue ? '#ffdada' : '#3b82f6'}; font-size: 0.85rem;">
+                            ${displayId}
+                        </a>
+                    </td>
+            	<td>
+                <a href="https://wa.me/91${c.phone}?text=${encodeURIComponent(
+                    `*ETHIRAJAN & SONS RICE MANDI*\n` +
+                    `---------------------------------\n` +
+                    `Greetings *${c.name}*,\n` +
+                    `This is a gentle reminder regarding your total pending balance of *₹${c.debt.toLocaleString('en-IN')}* at our shop.\n\n` +
+                    `Kindly settle the amount at your earliest convenience. If you have already paid, please ignore this message.\n` +
+                    `---------------------------------\n` +
+                    `*Thank you, visit again!*`
+                )}" 
+                   target="_blank" 
+                   class="text-decoration-none fw-bold" 
+                   style="color: ${isOverdue ? 'white' : '#25D366'};">
+                    <i class="bi bi-whatsapp me-1"></i>${c.phone}
+                </a>
+            </td>
+                    <td class="debt-amt ${isOverdue ? 'text-white' : ''}">
+                        ₹${c.debt.toLocaleString('en-IN')}
+                        ${isOverdue ? `<br><small class="badge bg-dark bg-opacity-25">Pending ${diffDays} Days</small>` : ''}
+                    </td>
+                    <td class="text-center">
+                        <button class="btn ${isOverdue ? 'btn-light text-danger' : 'btn-success'} btn-sm px-3 rounded-pill fw-bold" 
+                                onclick="settleDebt(${c.id}, ${c.debt})">
+                            Mark Paid
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        totalSpan.innerText = totalOverall.toLocaleString('en-IN');
+        
+        if(debtors.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted">No pending debts! Great job.</td></tr>';
+        }
+    } catch (err) {
+        console.error("Load Error:", err);
+    }
+}
+    let allDebtData = []; // Store the original list here when page loads
+
+    function filterDebtByDate() {
+        const selectedDate = document.getElementById('filterDate').value; // Format: YYYY-MM-DD
+        if (!selectedDate) return;
+
+        const filtered = allDebtData.filter(entry => {
+            // Assuming entry.date looks like "2026-04-17T..."
+            return entry.date.startsWith(selectedDate);
+        });
+
+        renderDebtTable(filtered);
+    }
+
+    function clearDateFilter() {
+        document.getElementById('filterDate').value = "";
+        renderDebtTable(allDebtData);
+    }
+    
+    
+    let masterDebtors = []; // To store data for sorting
+
+
+
+    function renderDebtTable(customers) {
+        const tbody = document.getElementById('masterDebtTable');
+        const totalSpan = document.getElementById('total-sum');
+        tbody.innerHTML = '';
+        let totalOverall = 0;
+        const today = new Date();
+
+        const activeDebtors = customers.filter(c => c.debt > 0);
+
+        activeDebtors.forEach(c => {
+            totalOverall += c.debt;
+            const lastDate = c.lastActivity ? new Date(c.lastActivity) : null;
+            let diffDays = lastDate ? Math.ceil(Math.abs(today - lastDate) / (1000 * 60 * 60 * 24)) : 0;
+            let isOverdue = diffDays >= 30;
+
+            tbody.innerHTML += `
+                <tr class="${isOverdue ? 'overdue-alert' : ''}">
+                    <td>${lastDate ? lastDate.toLocaleDateString('en-IN') : 'No Activity'}</td>
+                    <td>
+                        <div class="fw-bold">${isOverdue ? '⚠️ ' : ''}${c.name}</div>
+                        <a href="customer-profile.html?id=${c.id}" class="fw-bold text-decoration-none small">NOM-${1000 + c.id}</a>
+                    </td>
+                    <td>
+                        <a href="https://wa.me/91${c.phone}" target="_blank" class="text-decoration-none fw-bold">
+                            <i class="bi bi-whatsapp me-1"></i>${c.phone}
+                        </a>
+                    </td>
+                    <td>
+                        <div class="fw-bold">₹${c.debt.toLocaleString('en-IN')}</div>
+                        ${isOverdue ? `<small>Pending ${diffDays} Days</small>` : ''}
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm ${isOverdue ? 'btn-light text-danger' : 'btn-success'} rounded-pill" onclick="settleDebt(${c.id}, ${c.debt})">
+                            Mark Paid
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        totalSpan.innerText = totalOverall.toLocaleString('en-IN');
+    }
+
+    // 🟢 NEW SORT FUNCTION
+    
+    async function downloadDebtLedger() {
+    try {
+        const response = await fetch('http://localhost:8081/view-customers-debt');
+        const allCustomers = await response.json();
+        
+        // Filter for customers who actually owe money
+        const debtors = allCustomers.filter(c => c.debt > 0);
+        
+        if (debtors.length === 0) return alert("No pending debts to download!");
+
+        // 🟢 1. Create CSV Header
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Customer ID,Name,Phone,Last Activity,Current Balance (₹)\r\n";
+
+        // 🟢 2. Fill rows
+        debtors.forEach(c => {
+            const displayId = "NOM-" + (1000 + c.id);
+            const lastDate = c.lastActivity ? new Date(c.lastActivity).toLocaleDateString('en-IN') : "No Activity";
+            const debtAmt = c.debt || 0;
+
+            csvContent += `${displayId},${c.name},${c.phone},${lastDate},${debtAmt}\r\n`;
+        });
+
+        // 🟢 3. Trigger Download
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        const today = new Date().toISOString().split('T')[0];
+        
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Mandi_Master_Debt_${today}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+    } catch (err) {
+        console.error("Download Error:", err);
+        alert("Error connecting to server.");
+    }
+}
+   
+    
+    async function fetchDailyReport() {
+        const date = document.getElementById('reportDate').value;
+        if (!date) return alert("Select a date!");
+
+        const res = await fetch(`http://localhost:8081/sales-by-date/${date}`);
+        const data = await res.json();
+        
+        const tbody = document.getElementById('masterDebtTable');
+        tbody.innerHTML = '';
+
+        // 1. Only show sales where isDebt is TRUE
+        const debtSales = data.filter(s => s.isDebt === true);
+
+        if (debtSales.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5">No new debt recorded for this day.</td></tr>';
+            return;
+        }
+
+        debtSales.forEach(s => {
+            // We will fix the 'Customer Name' in the next step
+        	tbody.innerHTML += `
+        	    <tr class="table-warning bg-opacity-10">
+        	        <td class="small text-muted">${new Date(s.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+        	        <td><div class="fw-bold">${s.customerName || 'Guest'}</div><small class="text-muted">${s.itemsSummary}</small></td>
+        	        <td class="fw-bold text-primary">${s.customerPhone || '--'}</td>
+        	        <td class="text-danger fw-bold">₹${s.totalAmount}</td>
+        	        <td class="text-center small text-muted">Sale Record</td>
+        	    </tr>
+        	`;
+        });
+    }
+    
+    
+    
+    function filterMasterLedger() {
+        const term = document.getElementById('debtSearch').value.toLowerCase();
+        const rows = document.querySelectorAll('#masterDebtTable tr');
+
+        rows.forEach(row => {
+            // We check the Name column (index 1) and Phone column (index 2)
+            const nameText = row.cells[1].innerText.toLowerCase();
+            const phoneText = row.cells[2].innerText.toLowerCase();
+            
+            if (nameText.includes(term) || phoneText.includes(term)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    }
+    
+    async function settleDebt(id, currentDebt) {
+        const payment = prompt(`How much did the customer pay? (Current Debt: ₹${currentDebt})`, currentDebt);
+        
+        if (payment === null || payment === "" || isNaN(payment)) return;
+
+        try {
+            const response = await fetch(`http://localhost:8081/pay-debt/${id}/${payment}`, { method: 'POST' });
+            if (response.ok) {
+                alert("Payment Recorded Successfully!");
+                loadDebtData(); // Refresh table
+            }
+        } catch (err) {
+            alert("Error updating payment.");
+        }
+    }
+
+    // Initialize
+    loadDebtData();
+    
+
+    // Simple Search Logic
+    document.getElementById('debtSearch').addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#masterDebtTable tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
+</script>
+</body>
+</html>
