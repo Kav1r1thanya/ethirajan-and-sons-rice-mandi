@@ -20,8 +20,8 @@ To test Role-Based Access Control (RBAC) and evaluate live workflows:
 
 | Role | Username | Password | Permitted Actions |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `2310` | *(YourAdminPassword)* | Full ERP control: Ledger modifications, wholesale inventory, expense tracking, and business analytics. |
-| **staff** | `5987` | *(YourStaffPassword)* | Restricted POS terminal: Customer billing and fast-dispatch counters only. |
+| **Admin** | `Admin` | *2310* | Full ERP control: Ledger modifications, wholesale inventory, expense tracking, and business analytics. |
+| **Staff** | `staff` | *5987* | Restricted POS terminal: Customer billing and fast-dispatch counters only. |
 
 ---
 
